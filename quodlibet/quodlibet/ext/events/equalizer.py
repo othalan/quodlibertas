@@ -2,6 +2,7 @@
 # Copyright 2010 Steven Robertson
 #           2012 Christoph Reiter
 #           2017 Nick Boultbee
+#           2018 David Morris
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +19,7 @@ from quodlibet import config
 from quodlibet.qltk import Button, Icons
 from quodlibet.plugins.events import EventPlugin
 from quodlibet.compat import iteritems
+from quodlibet.util import print_d
 
 
 # Presets (roughly) taken from Pulseaudio equalizer
@@ -78,6 +80,8 @@ def interp_bands(src_band, target_band, src_gain):
             continue
         idx = sorted(src_band + [b]).index(b)
         idx = min(max(idx, 1), len(src_band) - 1)
+        print_d(f"src_band: {src_band[idx - 1:idx + 1]}")
+        print_d(f"src_gain: {src_gain[idx - 1:idx + 1]}")
         x1, x2 = src_band[idx - 1:idx + 1]
         y1, y2 = src_gain[idx - 1:idx + 1]
         g = y1 + ((y2 - y1) * (b - x1)) / float(x2 - x1)
@@ -87,6 +91,7 @@ def interp_bands(src_band, target_band, src_gain):
 
 def get_config():
     try:
+        # XXX Update me with preamp value
         eq_levels_str = config.get('plugins', 'equalizer_levels')
         return [float(s) for s in eq_levels_str.split(',')]
     except (config.Error, ValueError):
@@ -117,6 +122,9 @@ class Equalizer(EventPlugin):
         app.player.eq_values = (levels[:min(len(levels), lbands)] +
                                    [0.] * max(0, (lbands - len(levels))))
 
+        if app.player.eq_has_preamp:
+            # XXX Load from Preamp
+
     def enabled(self):
         self._enabled = True
         self.apply()
@@ -139,8 +147,16 @@ class Equalizer(EventPlugin):
                 return _('%.1f kHz') % (band / 1000.)
             return _('%d Hz') % band
 
+        print_d(f"Player Has Preamp: {app.player.eq_has_preamp}")
+
         bands = [format_hertz(band) for band in app.player.eq_bands]
+        # XXX Update Me for preamp
         levels = get_config() + [0.] * len(bands)
+
+        # If the backend player has a preamp, append it to the band list
+        if app.player.eq_has_preamp:
+            bands.append('Preamp')
+            levels.append(0.)
 
         table = Gtk.Table(rows=len(bands), columns=3)
         table.set_col_spacings(6)
@@ -149,22 +165,37 @@ class Equalizer(EventPlugin):
             rounded = int(adj.get_value() * 2) / 2.0
             adj.set_value(rounded)
             levels[idx] = rounded
+            # XXX Update Me for preamp
             config.set('plugins', 'equalizer_levels',
                        ','.join(str(lv) for lv in levels))
             self.apply()
 
         adjustments = []
 
+        adjMin, adjMax = app.player.eq_range
+
         for i, band in enumerate(bands):
+            print_d(f"Band: [{band}]")
             # align numbers and suffixes in separate rows for great justice
-            lbl = Gtk.Label(label=band.split()[0])
+            if band != 'Preamp':
+                lbl = Gtk.Label(band.split()[0])
+                lbl.set_alignment(1, 0.5)
+                lbl.set_padding(0, 4)
+                table.attach(lbl, 0, 1, i, i + 1, xoptions=Gtk.AttachOptions.FILL)
+            if band == 'Preamp':
+                text = band
+            else:
+                text = band.split()[1]
+            lbl = Gtk.Label(label=text)
             lbl.set_alignment(1, 0.5)
-            lbl.set_padding(0, 4)
-            table.attach(lbl, 0, 1, i, i + 1, xoptions=Gtk.AttachOptions.FILL)
-            lbl = Gtk.Label(label=band.split()[1])
-            lbl.set_alignment(1, 0.5)
-            table.attach(lbl, 1, 2, i, i + 1, xoptions=Gtk.AttachOptions.FILL)
-            adj = Gtk.Adjustment.new(levels[i], -24., 12., 0.5, 3, 0)
+            if band == 'Preamp':
+                cl=0
+            else:
+                cl=1
+            table.attach(lbl, cl, 2, i, i + 1, xoptions=Gtk.AttachOptions.FILL)
+            adj = Gtk.Adjustment.new(levels[i],
+                                     float(adjMin), float(adjMax),
+                                     0.5, 3, 0)
             adj.connect('value-changed', set_band, i)
             adjustments.append(adj)
             hs = Gtk.HScale(adjustment=adj)
@@ -180,20 +211,48 @@ class Equalizer(EventPlugin):
 
         sorted_presets = sorted(iteritems(PRESETS))
 
+        # Load any backend player presets
+        backend_presets = {}
+        for preset in app.player.eq_preset_list:
+            key = preset.name.lower().replace(' ', '_')
+            backend_presets[key] = preset
+        sorted_backend_presets = sorted(iteritems(backend_presets))
+
         def combo_changed(combo):
             # custom, skip
-            if not combo.get_active():
+            print_d(f"Combo Text: [{combo.get_active()}] [{combo.get_active_text()}]")
+            comboIndex = combo.get_active()
+            # Don't change the custom preset ...
+            if comboIndex == 0:
                 return
-            gain = sorted_presets[combo.get_active() - 1][1][1]
-            gain = interp_bands(PRESET_BANDS, app.player.eq_bands, gain)
-            for (g, a) in zip(gain, adjustments):
-                a.set_value(g)
+            # Directly load the backend preset
+            elif (comboIndex-1) >= len(sorted_presets):
+                # XXX Change the below to a lookup by combo box text name, this will be far easier!
+                gain = sorted_backend_presets[combo.get_active() - 1 - len(sorted_presets)][1][1]
+                for (g, a) in zip(gain, adjustments):
+                    a.set_value(g)
+
+                # Set the preamp value, if the backend player specifies a value
+                if app.player.eq_has_preamp:
+                    adjustments[-1].set_value(sorted_backend_presets[combo.get_active() - 1 - len(sorted_presets)][1].preamp)
+            # Interpolate out presets as necessary
+            else:
+                gain = sorted_presets[combo.get_active() - 1][1][1]
+                gain = interp_bands(PRESET_BANDS, app.player.eq_bands, gain)
+                for (g, a) in zip(gain, adjustments):
+                    a.set_value(g)
+
+                # No preamp value for our own presets!
+                if app.player.eq_has_preamp:
+                    adjustments[-1].set_value(0.)
 
         combo = Gtk.ComboBoxText()
         combo.append_text(_("Custom"))
         combo.set_active(0)
-        for key, (name, gain) in sorted_presets:
-            combo.append_text(name)
+        for key, preset in sorted_presets:
+            combo.append_text(preset[0])
+        for key, preset in sorted_backend_presets:
+            combo.append_text(preset[0])
         combo.connect("changed", combo_changed)
 
         bbox = Gtk.HButtonBox()

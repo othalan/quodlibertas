@@ -25,6 +25,7 @@ class VLCPlayer(BasePlayer):
     _paused = True     # Current Pause State
     _vlcmp = None      # The VLC MediaPlayer object
     _vlceq = None      # The VLC Equalizer pointer
+    _eq_preamp = 0.0   # Equalizer Preamp Value
     _volume = 1.0      # Volume property storage
     _seekOnPlay = None # Location to seek to on next play
 
@@ -320,6 +321,58 @@ class VLCPlayer(BasePlayer):
         if self._vlcmp is not None:
             self._vlcmp.set_equalizer(self._vlceq)
 
+    @property
+    def eq_has_preamp(self):
+        """If the equalizer has a preamp."""
+
+        return True
+
+    @property
+    def eq_preamp(self):
+        """The equalizer preamp value.
+
+        Only vaid if eq_has_preamp() == True"""
+
+        return self._eq_preamp
+
+    @eq_preamp.setter
+    def eq_preamp(self, value):
+        """Set the equalizer preamp value.
+
+        Only vaid if eq_has_preamp() == True"""
+
+        self._eq_preamp = value
+
+        if self._vlceq is not None:
+            vlc.libvlc_audio_equalizer_set_preamp(self._vlceq, value)
+
+    @property
+    def eq_preset_list(self):
+        """List of presets provided by the equalizer."""
+        presetList = []
+
+        for preset in range(vlc.libvlc_audio_equalizer_get_preset_count()):
+            bname = vlc.libvlc_audio_equalizer_get_preset_name(preset)
+            name = ('VLC: ' + bname.decode('utf-8'))
+            presetEq = vlc.libvlc_audio_equalizer_new_from_preset(preset)
+            preamp = vlc.libvlc_audio_equalizer_get_preamp(presetEq)
+            bands = []
+
+            for band in range(vlc.libvlc_audio_equalizer_get_band_count()):
+                bands.append(vlc.libvlc_audio_equalizer_get_amp_at_index(
+                    presetEq, band))
+
+            vlc.libvlc_audio_equalizer_release(presetEq)
+
+            presetList.append(self.EqualizerPreset(name, bands, preamp))
+
+        return presetList
+
+    @property
+    def eq_range(self):
+        """Return the (min,max) equalizer range."""
+
+        return (-20,20)
 
 def init(librarian):
     return VLCPlayer(librarian)
