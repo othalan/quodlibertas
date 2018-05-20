@@ -20,6 +20,7 @@ from quodlibet.compat import listfilter
 
 class Equalizer(object):
     _eq_values = []
+    _eq_preamp = 0.0
 
     # This class is used to return information about an equalizer
     # preset provided by the backend player
@@ -69,7 +70,7 @@ class Equalizer(object):
 
         Only vaid if eq_has_preamp() == True"""
 
-        return 0
+        return self._eq_preamp
 
     @eq_preamp.setter
     def eq_preamp(self, value):
@@ -77,7 +78,16 @@ class Equalizer(object):
 
         Only vaid if eq_has_preamp() == True"""
 
-        pass
+        self._eq_preamp = value
+        self.update_eq_values()
+
+    @property
+    def eq_preamp_default(self):
+        """Default Preamp Value.
+        This is useful when a backend player should have a default preamp
+        value other than 0.0 for normal playback."""
+
+        return 0.0
 
     @property
     def eq_preset_list(self):

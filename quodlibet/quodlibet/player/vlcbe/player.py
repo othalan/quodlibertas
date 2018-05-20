@@ -357,13 +357,17 @@ class VLCPlayer(BasePlayer):
 
         # Only configure the equalizer if there are non-zero values
         # ... otherwise the VLC defaults will be used
-        if any(self._eq_values):
+        if any(self._eq_values) or self._eq_preamp != 0.0:
             for band, val in enumerate(self._eq_values):
                 # NOTE: VLC equalizers have a range [-20,20], different from
                 #       QuodLibet! This will be handled automatically by the
                 #       VLC backend.
                 vlc.libvlc_audio_equalizer_set_amp_at_index(self._vlceq,
                                                             val, band)
+            if self._eq_preamp is not None:
+                vlc.libvlc_audio_equalizer_set_preamp(
+                        self._vlceq,
+                        self._eq_preamp)
 
         # Set the equalizer if the media player exists
         if self._vlcmp is not None:
@@ -376,23 +380,20 @@ class VLCPlayer(BasePlayer):
         return True
 
     @property
-    def eq_preamp(self):
-        """The equalizer preamp value.
+    def eq_preamp_default(self):
+        """Default Preamp Value.
+        This is useful when a backend player should have a default preamp
+        value other than 0.0 for normal playback."""
 
-        Only vaid if eq_has_preamp() == True"""
+        # The default equalizer for VLC is preset 0 (flat) with a non-zero
+        # preamp (12 as of 2018/05/20).  In order to avoid hard coding in a
+        # value which might change, obtain this preamp value directly from the
+        # preset.
+        tmpeq = vlc.libvlc_audio_equalizer_new_from_preset(0)
+        preamp = vlc.libvlc_audio_equalizer_get_preamp(tmpeq)
+        vlc.libvlc_audio_equalizer_release(tmpeq)
 
-        return self._eq_preamp
-
-    @eq_preamp.setter
-    def eq_preamp(self, value):
-        """Set the equalizer preamp value.
-
-        Only vaid if eq_has_preamp() == True"""
-
-        self._eq_preamp = value
-
-        if self._vlceq is not None:
-            vlc.libvlc_audio_equalizer_set_preamp(self._vlceq, value)
+        return preamp
 
     @property
     def eq_preset_list(self):
