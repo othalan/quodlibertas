@@ -182,7 +182,8 @@ class Equalizer(EventPlugin):
                 lbl = Gtk.Label(band.split()[0])
                 lbl.set_alignment(1, 0.5)
                 lbl.set_padding(0, 4)
-                table.attach(lbl, 0, 1, i, i + 1, xoptions=Gtk.AttachOptions.FILL)
+                table.attach(lbl, 0, 1, i, i + 1,
+                        xoptions=Gtk.AttachOptions.FILL)
             if band == 'Preamp':
                 text = band
             else:
@@ -190,9 +191,9 @@ class Equalizer(EventPlugin):
             lbl = Gtk.Label(label=text)
             lbl.set_alignment(1, 0.5)
             if band == 'Preamp':
-                cl=0
+                cl = 0
             else:
-                cl=1
+                cl = 1
             table.attach(lbl, cl, 2, i, i + 1, xoptions=Gtk.AttachOptions.FILL)
             adj = Gtk.Adjustment.new(levels[i],
                                      float(adjMin), float(adjMax),
@@ -221,21 +222,29 @@ class Equalizer(EventPlugin):
 
         def combo_changed(combo):
             # custom, skip
-            print_d(f"Combo Text: [{combo.get_active()}] [{combo.get_active_text()}]")
             comboIndex = combo.get_active()
             # Don't change the custom preset ...
             if comboIndex == 0:
                 return
             # Directly load the backend preset
-            elif (comboIndex-1) >= len(sorted_presets):
-                # XXX Change the below to a lookup by combo box text name, this will be far easier!
-                gain = sorted_backend_presets[combo.get_active() - 1 - len(sorted_presets)][1][1]
+            elif (comboIndex - 1) >= len(sorted_presets):
+                # XXX Change the below to a lookup by combo box text name, this
+                # will be far more clear in the code!  Get the name like:
+                # combo.get_active_text()
+                gain = sorted_backend_presets[
+                        combo.get_active()
+                        - 1
+                        - len(sorted_presets)][1][1]
                 for (g, a) in zip(gain, adjustments):
                     a.set_value(g)
 
                 # Set the preamp value, if the backend player specifies a value
                 if app.player.eq_has_preamp:
-                    adjustments[-1].set_value(sorted_backend_presets[combo.get_active() - 1 - len(sorted_presets)][1].preamp)
+                    adjustments[-1].set_value(
+                            sorted_backend_presets[
+                                combo.get_active()
+                                - 1
+                                - len(sorted_presets)][1].preamp)
             # Interpolate out presets as necessary
             else:
                 gain = sorted_presets[combo.get_active() - 1][1][1]

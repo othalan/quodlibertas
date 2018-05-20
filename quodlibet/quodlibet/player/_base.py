@@ -79,7 +79,6 @@ class Equalizer(object):
 
         pass
 
-
     @property
     def eq_preset_list(self):
         """List of presets provided by the equalizer.
@@ -92,7 +91,7 @@ class Equalizer(object):
     def eq_range(self):
         """Return the (min,max) equalizer range."""
 
-        return (-24,12)
+        return (-24, 12)
 
 
 class BasePlayer(GObject.GObject, Equalizer):

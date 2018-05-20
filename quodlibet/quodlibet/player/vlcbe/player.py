@@ -420,7 +420,8 @@ class VLCPlayer(BasePlayer):
     def eq_range(self):
         """Return the (min,max) equalizer range."""
 
-        return (-20,20)
+        return (-20, 20)
+
 
 def init(librarian):
     return VLCPlayer(librarian)
