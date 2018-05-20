@@ -124,6 +124,7 @@ class Equalizer(EventPlugin):
 
         if app.player.eq_has_preamp:
             # XXX Load from Preamp
+            pass
 
     def enabled(self):
         self._enabled = True
