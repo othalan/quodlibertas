@@ -11,6 +11,9 @@
 
 # TODO: Include saving and loading.
 
+# FIXME: Add a preamp control for backends which support an equalizer preamp
+# FIXME: Consider loading presets provided by a backend
+
 from gi.repository import Gtk, Gdk
 
 from quodlibet import _
